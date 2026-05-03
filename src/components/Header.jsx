@@ -7,6 +7,7 @@ const NAV_LINKS = [
     { to: '/cover-letter-generator', label: 'Cover Letter' },
     { to: '/interview-prep', label: 'Interview Prep' },
     { to: '/cold-email', label: 'Cold Email' },
+    { to: '/ats-score', label: 'ATS Score' },
 ];
 
 const Header = () => {

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Zap, FileText, Mail, MessageSquare, TrendingUp, Sparkles,
-  Copy, Check, AlertCircle, ChevronRight, Loader2, CheckCircle2
+  Zap, FileText, Mail, MessageSquare, TrendingUp,
+  Copy, Check, AlertCircle, ChevronRight, Loader2, CheckCircle2,
 } from 'lucide-react';
 import {
   generateCoverLetter,
   generateColdEmail,
   generateInterviewQuestions,
+  scoreResumeFromText,
   scoreResume,
   generateResumeTips,
 } from '../utils/ai';
@@ -150,34 +151,74 @@ function InterviewPanel({ data }) {
 }
 
 function AtsPanel({ data }) {
-  const color = data.score >= 80 ? 'text-green-500' : data.score >= 60 ? 'text-amber-500' : 'text-red-500';
-  const barColor = data.score >= 80 ? 'bg-green-500' : data.score >= 60 ? 'bg-amber-500' : 'bg-red-500';
+  const score = data.score ?? 0;
+  const color = score >= 75 ? 'text-green-600' : score >= 50 ? 'text-amber-500' : 'text-red-500';
+  const barColor = score >= 75 ? 'bg-green-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-400';
+  const label = score >= 75 ? 'Strong Match' : score >= 50 ? 'Moderate Match' : 'Weak Match';
+  const matched = data.matchedKeywords || [];
+  const missing = data.missingKeywords || [];
+  const improvements = (data.improvements || data.feedback || []).slice(0, 3);
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-center gap-6">
-        <div className={`text-6xl font-black ${color}`}>{data.score}<span className="text-xl text-gray-300 font-normal">/100</span></div>
+    <div className="space-y-5">
+      {/* Score */}
+      <div className="flex items-center gap-5 bg-gray-50 border border-gray-100 rounded-2xl p-5">
+        <div className={`text-5xl font-black ${color} shrink-0`}>
+          {score}<span className="text-lg text-gray-300 font-normal">/100</span>
+        </div>
         <div className="flex-1">
-          <div className="flex justify-between text-sm text-gray-500 mb-2">
+          <div className="flex justify-between text-sm mb-1.5">
             <span className="font-semibold text-gray-800">ATS Match Score</span>
-            <span>{data.score}%</span>
+            <span className={`font-bold text-sm ${color}`}>{label}</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-3">
-            <div className={`h-3 rounded-full transition-all ${barColor}`} style={{ width: `${data.score}%` }}></div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div className={`h-2.5 rounded-full transition-all ${barColor}`} style={{ width: `${score}%` }}></div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Based on keyword match with the job description</p>
         </div>
       </div>
-      <div>
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">AI Feedback</h3>
-        <div className="space-y-2">
-          {data.feedback.map((f, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 flex gap-3 shadow-sm">
-              <span className="text-rose-500 font-bold shrink-0">→</span>
-              <p className="text-sm text-gray-700 leading-relaxed">{f}</p>
+
+      {/* Keywords — compact two column */}
+      {(matched.length > 0 || missing.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          {matched.length > 0 && (
+            <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-green-700 mb-2">Matched ({matched.length})</p>
+              <div className="flex flex-wrap gap-1">
+                {matched.slice(0, 6).map((kw, i) => (
+                  <span key={i} className="text-xs bg-white border border-green-200 text-green-700 px-2 py-0.5 rounded-full">{kw}</span>
+                ))}
+                {matched.length > 6 && <span className="text-xs text-green-500">+{matched.length - 6} more</span>}
+              </div>
             </div>
-          ))}
+          )}
+          {missing.length > 0 && (
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-red-600 mb-2">Missing ({missing.length})</p>
+              <div className="flex flex-wrap gap-1">
+                {missing.slice(0, 6).map((kw, i) => (
+                  <span key={i} className="text-xs bg-white border border-red-200 text-red-600 px-2 py-0.5 rounded-full">{kw}</span>
+                ))}
+                {missing.length > 6 && <span className="text-xs text-red-400">+{missing.length - 6} more</span>}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Top 3 improvements only */}
+      {improvements.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Quick Fixes</p>
+          <div className="space-y-2">
+            {improvements.map((f, i) => (
+              <div key={i} className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-700">{f}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -201,6 +242,7 @@ const JobPackage = () => {
   const [education,    setEducation]    = useState(null);
   const [extractedExp, setExtractedExp] = useState([]);
   const [extractedProj, setExtractedProj] = useState([]);
+  const [resumeRawText, setResumeRawText] = useState('');
 
   const applyResumeData = (data) => {
     if (data.fullName) setFullName(data.fullName);
@@ -222,9 +264,10 @@ const JobPackage = () => {
     }
   }, [resumeData]);
 
-  const handleResumeExtracted = (data) => {
+  const handleResumeExtracted = (data, rawText = '') => {
     applyResumeData(data);
     setResumeData(data);
+    if (rawText) setResumeRawText(rawText);
     setShowUploader(false);
   };
 
@@ -272,7 +315,9 @@ const JobPackage = () => {
       () => run('coverLetter',   () => generateCoverLetter({ fullName, email, phone: '', linkedin: '', jobTitle, companyName, companyLocation: '', jobDescription: jobDesc, experience, skills, tone: 'Professional' })),
       () => run('coldEmail',     () => generateColdEmail({ fullName, jobTitle, companyName, recruiterName: '', skills, experience: expArr })),
       () => run('interviewPrep', () => generateInterviewQuestions({ jobTitle, jobDescription: jobDesc, skills, experience: expArr })),
-      () => run('atsScore',      () => scoreResume(jobDesc, skills, expArr, projArr, education)),
+      () => run('atsScore',      () => resumeRawText
+        ? scoreResumeFromText(resumeRawText, jobDesc)
+        : scoreResume(jobDesc, skills, expArr, projArr, education)),
     ];
 
     calls.forEach((fn, i) => delay(i * 400).then(fn));

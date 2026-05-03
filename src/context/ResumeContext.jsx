@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 
-const ResumeContext = createContext(null);
+const ResumeContext = createContext({ resumeData: null, setResumeData: () => {} });
 
 export const ResumeProvider = ({ children }) => {
   const [resumeData, setResumeData] = useState(null);

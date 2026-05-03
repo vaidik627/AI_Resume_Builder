@@ -31,7 +31,7 @@ const ResumeUploader = ({ onExtracted, onDismiss }) => {
       setStatus('parsing');
       const data = await extractResumeData(text);
       setStatus('done');
-      onExtracted(data);
+      onExtracted(data, text);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to process resume.');
       setStatus('error');

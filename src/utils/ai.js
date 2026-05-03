@@ -66,6 +66,112 @@ You MUST respond with ONLY valid JSON in the exact following structure. Do not w
   }
 }
 
+// Deterministic keyword matching — runs in browser, no AI hallucination possible
+const TECH_KEYWORDS = [
+  'javascript','typescript','python','java','c++','c#','go','rust','ruby','php','swift','kotlin','scala','r',
+  'react','vue','angular','next.js','nuxt','svelte','gatsby','remix','react native','flutter','electron',
+  'node.js','express','fastapi','django','flask','spring','laravel','rails','asp.net','nestjs','graphql',
+  'sql','mysql','postgresql','mongodb','redis','elasticsearch','firebase','supabase','dynamodb','cassandra','sqlite',
+  'aws','azure','gcp','docker','kubernetes','terraform','ansible','jenkins','github actions','gitlab ci','ci/cd',
+  'git','linux','bash','rest','api','microservices','serverless','kafka','rabbitmq','nginx',
+  'machine learning','deep learning','nlp','llm','tensorflow','pytorch','scikit-learn','pandas','numpy','opencv',
+  'html','css','tailwind','bootstrap','sass','webpack','vite','babel','jest','cypress','selenium','playwright',
+  'agile','scrum','jira','figma','photoshop','postman','swagger','oauth','jwt','graphql','websocket',
+  'data structures','algorithms','oop','functional programming','tdd','bdd','ci/cd','devops','sre',
+];
+
+function extractKeywords(text) {
+  const lower = text.toLowerCase();
+  return TECH_KEYWORDS.filter(kw => lower.includes(kw.toLowerCase()));
+}
+
+export async function scoreResumeFromText(resumeText, jobDescription) {
+  // Step 1: deterministic keyword matching — zero hallucination
+  const resumeKeywords = extractKeywords(resumeText);
+  const jdKeywords     = extractKeywords(jobDescription);
+  const matched = resumeKeywords.filter(kw => jdKeywords.includes(kw));
+  const missing  = jdKeywords.filter(kw => !resumeKeywords.includes(kw));
+  const total = matched.length + missing.length;
+  const keywordScore = total === 0 ? 20 : Math.min(40, Math.round((matched.length / total) * 40));
+
+  // Step 2: compute deterministic sub-scores from text analysis
+  const resumeLower = resumeText.toLowerCase();
+  const jdLower = jobDescription.toLowerCase();
+
+  // Skills score: ratio of JD skills found in resume (max 25)
+  const skillsScore = total === 0 ? 12
+    : Math.min(25, Math.round((matched.length / Math.max(jdKeywords.length, 1)) * 25));
+
+  // Achievements score: check for numbers/metrics in resume (max 5)
+  const hasMetrics = /\d+\s*(%|percent|x|times|users|clients|projects|ms|gb|tb|k\b|\$)/.test(resumeLower);
+  const achievementScore = hasMetrics ? 5 : 2;
+
+  // Only ask AI for experience + education (harder to compute deterministically) + feedback
+  const prompt = `You are a strict ATS resume scorer. Only analyze what is explicitly written below. Do NOT invent anything.
+
+RESUME:
+${resumeText.slice(0, 2500)}
+
+JOB DESCRIPTION:
+${jobDescription.slice(0, 1500)}
+
+Score ONLY these 2 criteria (strict integers):
+- experience: 0-20 — how directly does the resume work experience match the JD role and responsibilities?
+- education: 0-10 — does resume education match JD requirements? Use 5 if JD has no education requirement.
+
+Also provide:
+- strengths: 2 short sentences about resume sections that directly match the JD
+- improvements: 3 short action items for things the JD requires but resume is missing
+
+Return ONLY this JSON, no markdown:
+{"experience":0,"education":0,"strengths":["...","..."],"improvements":["...","...","..."]}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: 'You are a JSON-only ATS scorer. Return only the exact JSON structure requested. No markdown, no explanation.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 800,
+    });
+
+    const raw = response.choices[0].message.content;
+    console.log("ATS raw response:", raw);
+    const content = stripMarkdownJson(raw);
+    let ai;
+    try {
+      ai = JSON.parse(content);
+    } catch (parseErr) {
+      console.error("ATS JSON parse failed:", content);
+      // Extract numbers with regex as fallback
+      ai = {
+        experience:   parseInt(content.match(/"experience"\s*:\s*(\d+)/)?.[1]) || 8,
+        education:    parseInt(content.match(/"education"\s*:\s*(\d+)/)?.[1]) || 5,
+        strengths:    [],
+        improvements: [],
+      };
+    }
+
+    const experienceScore = Math.min(20, Math.max(0, parseInt(ai.experience) || 0));
+    const educationScore  = Math.min(10, Math.max(0, parseInt(ai.education)  || 0));
+    const totalScore = keywordScore + skillsScore + experienceScore + educationScore + achievementScore;
+
+    return {
+      score:    totalScore,
+      breakdown: { keywords: keywordScore, skills: skillsScore, experience: experienceScore, education: educationScore, achievements: achievementScore },
+      matchedKeywords: matched.slice(0, 12),
+      missingKeywords: missing.slice(0, 10),
+      strengths:    Array.isArray(ai.strengths)    ? ai.strengths    : [],
+      improvements: Array.isArray(ai.improvements) ? ai.improvements : [],
+    };
+  } catch (error) {
+    console.error("ATS Scoring Error:", error?.message, error);
+    throw new Error(`Failed to score resume: ${error?.message || error}`);
+  }
+}
+
 export async function scoreResume(jobDescription, skills, experience, projects, education = null) {
   const educationStr = education
     ? `Education: ${education.degree || ''} from ${education.university || ''} (${education.gradYear || ''})${education.cgpa ? ', GPA: ' + education.cgpa : ''}`
@@ -180,14 +286,15 @@ IMPORTANT: Keep each modelAnswer under 60 words. Respond ONLY in valid JSON. Do 
 
     const content = stripMarkdownJson(response.choices[0].message.content);
     const parsed = JSON.parse(content);
-    if (parsed.questions) {
-      parsed.questions = parsed.questions.map(q => ({
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    return {
+      questions: questions.map(q => ({
         ...q,
-        question: stripMarkdownText(q.question),
-        modelAnswer: stripMarkdownText(q.modelAnswer),
-      }));
-    }
-    return parsed;
+        type: q.type || 'General',
+        question: stripMarkdownText(q.question || ''),
+        modelAnswer: stripMarkdownText(q.modelAnswer || ''),
+      })),
+    };
   } catch (error) {
     console.error("Interview Question Error:", error);
     throw new Error(`Interview prep failed: ${error?.message || error}`);

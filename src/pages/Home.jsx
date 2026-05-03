@@ -34,9 +34,9 @@ const FEATURES = [
     {
         icon: <TrendingUp className="w-5 h-5 text-green-700" />,
         iconBg: 'bg-green-100',
-        title: 'ATS Score & Feedback',
+        title: 'ATS Score Checker',
         desc: 'Get a match score and AI feedback against any job description.',
-        route: '/job-package',
+        route: '/ats-score',
     },
 ];
 

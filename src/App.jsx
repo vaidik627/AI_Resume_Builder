@@ -8,6 +8,7 @@ import CoverLetterGenerator from './pages/CoverLetterGenerator';
 import InterviewPrep from './pages/InterviewPrep';
 import ColdEmailGenerator from './pages/ColdEmailGenerator';
 import JobPackage from './pages/JobPackage';
+import ATSScore from './pages/ATSScore';
 import { ResumeProvider } from './context/ResumeContext';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
               <Route path="/interview-prep" element={<InterviewPrep />} />
               <Route path="/cold-email" element={<ColdEmailGenerator />} />
               <Route path="/job-package" element={<JobPackage />} />
+              <Route path="/ats-score" element={<ATSScore />} />
             </Routes>
           </main>
           <Footer />
