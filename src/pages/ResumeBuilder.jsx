@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Cpu, Download, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Sparkles, Download, AlertCircle } from 'lucide-react';
 import { enhanceResumeContent } from '../utils/ai';
+import ResumeUploader from '../components/ResumeUploader';
+import { useResume } from '../context/ResumeContext';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 const ResumeBuilder = () => {
+    const { setResumeData } = useResume();
     const [isGenerating, setIsGenerating] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [aiError, setAiError] = useState('');
+    const [showUploader, setShowUploader] = useState(true);
 
     const [personalInfo, setPersonalInfo] = useState({
         fullName: 'John Doe',
@@ -30,6 +34,35 @@ const ResumeBuilder = () => {
     const [experience, setExperience] = useState([
         { id: 1, company: 'Tech Innovations Inc.', role: 'Software Engineer Intern', duration: 'June 2025 - Aug 2025', description: 'Engineered scalable frontend components and improved rendering performance by 25%.' }
     ]);
+
+    const handleResumeExtracted = (data) => {
+        if (data.fullName || data.email) {
+            setPersonalInfo({
+                fullName: data.fullName || '',
+                email: data.email || '',
+                phone: data.phone || '',
+                linkedin: data.linkedin || '',
+                github: data.github || '',
+            });
+        }
+        if (data.degree || data.university) {
+            setEducation({
+                degree: data.degree || '',
+                university: data.university || '',
+                gradYear: data.gradYear || '',
+                cgpa: data.cgpa || '',
+            });
+        }
+        if (data.skills) setSkills(data.skills);
+        if (data.experience?.length) {
+            setExperience(data.experience.map((e, i) => ({ id: Date.now() + i, company: e.company || '', role: e.role || '', duration: e.duration || '', description: e.description || '' })));
+        }
+        if (data.projects?.length) {
+            setProjects(data.projects.map((p, i) => ({ id: Date.now() + i + 100, title: p.title || '', technologies: p.technologies || '', description: p.description || '' })));
+        }
+        setShowUploader(false);
+        setResumeData(data);
+    };
 
     const addProject = () => setProjects([...projects, { id: Date.now(), title: '', description: '', technologies: '' }]);
     const removeProject = (id) => setProjects(projects.filter(p => p.id !== id));
@@ -70,21 +103,12 @@ const ResumeBuilder = () => {
         try {
             const el = document.getElementById('resume-paper');
 
-            // Temporarily remove the scale transform so html2canvas captures full size
-            el.style.transform = 'scale(1)';
-            el.style.transformOrigin = 'top left';
-            await new Promise(r => setTimeout(r, 150));
-
             const canvas = await html2canvas(el, {
                 scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
                 logging: false
             });
-
-            // Restore scale
-            el.style.transform = '';
-            el.style.transformOrigin = '';
 
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
             const pdfW = pdf.internal.pageSize.getWidth();
@@ -112,43 +136,43 @@ const ResumeBuilder = () => {
     };
 
     return (
-        <div className="w-full bg-gray-50/50 min-h-screen">
+        <div className="w-full bg-[#f8f9fb] min-h-screen">
             <div className="max-w-[1400px] mx-auto pt-8 pb-12 px-4 sm:px-6 lg:px-8">
 
                 {/* Header */}
                 <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">AI Resume Builder</h1>
-                        <p className="text-gray-500 mt-1">Fill out the form to instantly generate a professional resume.</p>
+                        <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Resume Builder</h1>
+                        <p className="text-gray-500 mt-1 text-sm">Fill in your details — live preview updates as you type.</p>
                     </div>
                     <div className="flex gap-3 flex-wrap">
                         <button
                             onClick={handleEnhanceWithAI}
                             disabled={isGenerating || isExporting}
-                            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-2.5 px-6 rounded-xl transition-all shadow-md shadow-green-600/20 flex items-center gap-2 active:scale-95"
+                            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-2.5 px-5 rounded-xl transition-all shadow-md shadow-green-600/20 flex items-center gap-2 active:scale-95 text-sm"
                         >
                             {isGenerating ? (
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                             ) : (
-                                <Cpu className="w-5 h-5" />
+                                <Sparkles className="w-4 h-4" />
                             )}
                             {isGenerating ? 'Enhancing...' : 'Enhance with AI'}
                         </button>
                         <button
                             onClick={handleExportPDF}
                             disabled={isGenerating || isExporting}
-                            className="bg-white hover:bg-gray-50 disabled:opacity-60 text-gray-700 border border-gray-200 font-medium py-2.5 px-6 rounded-xl transition-all shadow-sm flex items-center gap-2 active:scale-95"
+                            className="bg-white hover:bg-gray-50 disabled:opacity-60 text-gray-700 border border-gray-200 font-semibold py-2.5 px-5 rounded-xl transition-all shadow-sm flex items-center gap-2 active:scale-95 text-sm"
                         >
                             {isExporting ? (
-                                <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg className="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                             ) : (
-                                <Download className="w-5 h-5" />
+                                <Download className="w-4 h-4" />
                             )}
                             {isExporting ? 'Exporting...' : 'Export PDF'}
                         </button>
@@ -166,7 +190,20 @@ const ResumeBuilder = () => {
                 <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start">
 
                     {/* Left: Form */}
-                    <div className="lg:col-span-5 xl:col-span-5 bg-white border border-gray-100 rounded-2xl shadow-sm p-6 mb-8 lg:mb-0 space-y-8 overflow-y-auto max-h-[calc(100vh-160px)] custom-scrollbar">
+                    <div className="lg:col-span-5 xl:col-span-5 bg-white border border-gray-200/60 rounded-2xl shadow-sm p-6 mb-8 lg:mb-0 space-y-7">
+
+                        {/* PDF Upload */}
+                        {showUploader && (
+                            <ResumeUploader
+                                onExtracted={handleResumeExtracted}
+                                onDismiss={() => setShowUploader(false)}
+                            />
+                        )}
+                        {!showUploader && (
+                            <button onClick={() => setShowUploader(true)} className="w-full text-xs text-gray-400 hover:text-green-600 transition-colors py-1 text-center">
+                                + Upload a different resume
+                            </button>
+                        )}
 
                         {/* Section 1: Personal Info */}
                         <section>
@@ -317,11 +354,12 @@ const ResumeBuilder = () => {
 
                     {/* Right: Live Preview */}
                     <div className="lg:col-span-7 xl:col-span-7 sticky top-28 hidden lg:block">
-                        <div className="bg-gray-200/50 p-6 rounded-2xl border border-gray-100 flex items-center justify-center min-h-[calc(100vh-160px)]">
+                        <div className="bg-gradient-to-br from-gray-100 to-gray-200/60 p-6 rounded-2xl border border-gray-200/60 flex flex-col items-center justify-start" style={{ maxHeight: 'calc(100vh - 130px)', overflowY: 'auto' }}>
+                            <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-4 self-start">Live Preview</p>
 
                             <div
                                 id="resume-paper"
-                                className="bg-white w-full max-w-[800px] aspect-[8.5/11] rounded-sm shadow-md border border-gray-200 p-10 font-sans text-gray-800 scale-[0.85] origin-top transform-gpu overflow-hidden"
+                                className="bg-white w-full max-w-[760px] rounded-sm shadow-md border border-gray-200 p-10 font-sans text-gray-800"
                             >
                                 {/* Header */}
                                 <div className="border-b border-gray-800 pb-4 mb-4 text-center">
