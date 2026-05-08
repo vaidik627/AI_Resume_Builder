@@ -1,8 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Use local bundled worker — CDN .mjs workers fail on iOS Safari
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// Disable worker — ES module workers fail on older iOS Safari.
+// pdfjs falls back to fake-worker (runs in main thread), which is fine for small resume PDFs.
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
 function readFileAsArrayBuffer(file) {
   return new Promise((resolve, reject) => {
