@@ -133,42 +133,62 @@ const ResumeBuilder = () => {
     const handleExportPDF = async () => {
         setIsExporting(true);
         setAiError('');
-        const zoomWrapper = document.getElementById('preview-zoom-wrapper');
-        const paper = document.getElementById('resume-paper');
-        const savedMinHeight = paper ? paper.style.minHeight : '';
+        const exportPaper = document.getElementById('export-resume-paper');
+        if (!exportPaper) {
+            setAiError('Export target not found.');
+            setIsExporting(false);
+            return;
+        }
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         try {
-            // Reset zoom AND remove minHeight on the real element so browser re-layouts
-            // before html2canvas measures the element's scrollHeight.
-            if (zoomWrapper) zoomWrapper.style.zoom = '1';
-            if (paper) paper.style.minHeight = '0';
-
-            // Two frames: first for zoom re-layout, second to ensure paint.
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-            if (!paper) throw new Error('resume-paper element not found');
-            const canvas = await html2canvas(paper, {
+            const rect = exportPaper.getBoundingClientRect();
+            const canvas = await html2canvas(exportPaper, {
                 scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
+                width: 794,
+                height: exportPaper.scrollHeight,
+                scrollX: -rect.left,
+                scrollY: -rect.top,
                 onclone: (clonedDoc) => {
-                    // Strip oklch Tailwind stylesheets — all resume styles are inline hex.
                     clonedDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(n => n.remove());
+                    // html2canvas miscalculates height of flex-wrap:wrap containers — rows collapse on top of each other.
+                    // Converting to block + inline-block children uses the text layout engine instead, which html2canvas handles correctly.
+                    clonedDoc.querySelectorAll('*').forEach(el => {
+                        if (el.style && el.style.flexWrap === 'wrap') {
+                            el.style.display = 'block';
+                            el.style.flexWrap = '';
+                            Array.from(el.children).forEach(child => {
+                                child.style.display = 'inline-block';
+                                child.style.marginRight = '4px';
+                                child.style.marginBottom = '4px';
+                            });
+                        }
+                    });
                 },
             });
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfW = pdf.internal.pageSize.getWidth();
+            const pdfH = pdf.internal.pageSize.getHeight();
+            const imgData = canvas.toDataURL('image/png');
             const imgH = (canvas.height / canvas.width) * pdfW;
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, imgH);
+
+            // Split across pages if content exceeds one A4 page
+            let remaining = imgH;
+            let yOffset = 0;
+            while (remaining > 0) {
+                if (yOffset > 0) pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, -yOffset, pdfW, imgH);
+                yOffset += pdfH;
+                remaining -= pdfH;
+            }
+
             pdf.save(`${personalInfo.fullName || 'Resume'}_Resume.pdf`);
         } catch (err) {
             setAiError(`PDF export failed: ${err?.message || 'Unknown error'}`);
-            console.error('PDF export error:', err);
         } finally {
-            // Always restore
-            if (zoomWrapper) zoomWrapper.style.zoom = String(PREVIEW_ZOOM);
-            if (paper) paper.style.minHeight = savedMinHeight;
             setIsExporting(false);
         }
     };
@@ -176,6 +196,7 @@ const ResumeBuilder = () => {
     const previewProps = { templateId: selectedTemplate, personalInfo, summary, education, skillCategories, experience, projects, certifications, achievements };
 
     return (
+        <>
         <div className="w-full bg-[#f8f9fb] min-h-screen">
             <div className="max-w-[1400px] mx-auto pt-8 pb-12 px-4 sm:px-6 lg:px-8">
 
@@ -427,6 +448,14 @@ const ResumeBuilder = () => {
                 Live preview is available on desktop view. Export to see the final document.
             </div>
         </div>
+
+        {/* Hidden full-size export target — absolute so content isn't viewport-clipped by html2canvas */}
+        <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none', width: '794px', overflow: 'visible' }}>
+            <div id="export-resume-paper" style={{ width: '794px', background: '#ffffff' }}>
+                <ResumePreview {...previewProps} />
+            </div>
+        </div>
+        </>
     );
 };
 
