@@ -1,6 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+// Use local bundled worker — CDN .mjs workers fail on iOS Safari
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 function readFileAsArrayBuffer(file) {
   return new Promise((resolve, reject) => {
